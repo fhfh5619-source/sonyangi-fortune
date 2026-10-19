@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>소냥이 포춘살롱 관리자</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .table-wrap { overflow-x: auto; margin-top: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #ebd8fc; }
+    th { background: #f0e2fc; color: var(--deep-purple); font-weight: 700; }
+    .badge-status { padding: 4px 8px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; }
+    .status-wait { background: #ffe4b5; color: #8a5300; }
+    .status-done { background: #d4edda; color: #155724; }
+  </style>
+</head>
+<body>
+
+  <div class="app-container wide">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <h2 style="font-size:1.4rem; color:var(--deep-purple);">🔮 상담 신청자 관리실</h2>
+      <a href="index.html" style="font-size:0.85rem; color:var(--primary-purple); text-decoration:none;">홈으로 가기</a>
+    </div>
+
+    <!-- 로그인 창 -->
+    <div id="login-box" style="text-align:center; padding:30px 10px;">
+      <p style="margin-bottom:12px; color:var(--text-muted);">관리자 비밀번호를 입력해주세요.</p>
+      <input type="password" id="admin-pw" class="form-control" style="max-width:240px; margin:0 auto 12px; display:block;" placeholder="기본: sonyangi777">
+      <button class="btn-primary" style="max-width:240px;" onclick="fetchAdminData()">인증 후 조회</button>
+    </div>
+
+    <!-- 관리자 데이터 목록 -->
+    <div id="admin-dashboard" style="display:none;">
+      <div style="display:flex; gap:10px; margin-bottom:12px; justify-content:flex-end;">
+        <button onclick="downloadCSV()" class="btn-primary" style="width:auto; padding:8px 14px; font-size:0.85rem;">📥 CSV 엑셀 다운로드</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>구분</th>
+              <th>신청자</th>
+              <th>연락처</th>
+              <th>결과 유형</th>
+              <th>고민 내용</th>
+              <th>신청일시</th>
+              <th>상태 관리</th>
+            </tr>
+          </thead>
+          <tbody id="applicant-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let applicantList = [];
+
+    async function fetchAdminData() {
+      const pw = document.getElementById('admin-pw').value;
+      try {
+        const res = await fetch('/api/admin/list', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ password: pw })
+        });
+        const data = await res.json();
+        if (data.success) {
+          applicantList = data.list;
+          document.getElementById('login-box').style.display = 'none';
+          document.getElementById('admin-dashboard').style.display = 'block';
+          renderAdminTable();
+        } else {
+          alert(data.message);
+        }
+      } catch (err) {
+        alert('조회 중 오류가 발생했습니다.');
+      }
+    }
+
+    function renderAdminTable() {
+      const tbody = document.getElementById('applicant-tbody');
+      tbody.innerHTML = '';
+      applicantList.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${item.type}</strong></td>
+          <td>${item.name}</td>
+          <td>${item.phone}</td>
+          <td><small>${item.resultTitle}</small></td>
+          <td><small>${item.story}</small></td>
+          <td><small>${item.createdAt}</small></td>
+          <td>
+            <select onchange="updateStatus(${item.id}, this.value)" style="padding:4px; border-radius:6px; border:1px solid #ccc; font-size:0.8rem;">
+              <option value="신청접수" ${item.status === '신청접수' ? 'selected' : ''}>신청접수</option>
+              <option value="상담완료" ${item.status === '상담완료' ? 'selected' : ''}>상담완료</option>
+            </select>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function updateStatus(id, newStatus) {
+      const pw = document.getElementById('admin-pw').value;
+      await fetch('/api/admin/update-status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ password: pw, id, status: newStatus })
+      });
+      alert('상태가 업데이트되었습니다.');
+    }
+
+    function downloadCSV() {
+      let csvContent = "\uFEFF구분,이름,연락처,이메일,결과,고민,신청일시,상태\n";
+      applicantList.forEach(row => {
+        csvContent += `"${row.type}","${row.name}","${row.phone}","${row.email}","${row.resultTitle}","${row.story}","${row.createdAt}","${row.status}"\n`;
+      });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `소냥이_포춘살롱_신청내역_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
