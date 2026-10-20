@@ -1,7 +1,7 @@
 {
-  "name": "sonyangi-fortune-salon",
+  "name": "sonyangi-fortune",
   "version": "1.0.0",
-  "description": "소냥이 포춘살롱 - 타로 & 사주 심리상담 통합 플랫폼",
+  "description": "소냥이 포춘살롱 - 타로 & 사주 심리상담 플랫폼",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
