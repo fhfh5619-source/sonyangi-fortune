@@ -8,19 +8,21 @@
   <style>
     .table-wrap { overflow-x: auto; margin-top: 16px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; }
-    th, td { padding: 10px 8px; border-bottom: 1px solid #ebd8fc; }
-    th { background: #f0e2fc; color: var(--deep-purple); font-weight: 700; }
-    .badge-status { padding: 4px 8px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; }
-    .status-wait { background: #ffe4b5; color: #8a5300; }
-    .status-done { background: #d4edda; color: #155724; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid #ebd8fc; vertical-align: middle; }
+    th { background: #f0e2fc; color: var(--deep-purple); font-weight: 700; white-space: nowrap; }
+    .btn-view-report {
+      background: #7942a6; color: #fff; border: none; padding: 6px 12px;
+      border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer;
+    }
+    .btn-view-report:hover { background: #5c2692; }
   </style>
 </head>
 <body>
 
   <div class="app-container wide">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h2 style="font-size:1.4rem; color:var(--deep-purple);">🔮 상담 신청자 관리실</h2>
-      <a href="index.html" style="font-size:0.85rem; color:var(--primary-purple); text-decoration:none;">홈으로 가기</a>
+      <h2 style="font-size:1.4rem; color:var(--deep-purple);">🔮 신청자 관리 및 심층 풀이서 발송</h2>
+      <a href="index.html" style="font-size:0.85rem; color:var(--primary-purple); text-decoration:none;">홈으로</a>
     </div>
 
     <!-- 로그인 창 -->
@@ -30,7 +32,7 @@
       <button class="btn-primary" style="max-width:240px;" onclick="fetchAdminData()">인증 후 조회</button>
     </div>
 
-    <!-- 관리자 데이터 목록 -->
+    <!-- 데이터 목록 -->
     <div id="admin-dashboard" style="display:none;">
       <div style="display:flex; gap:10px; margin-bottom:12px; justify-content:flex-end;">
         <button onclick="downloadCSV()" class="btn-primary" style="width:auto; padding:8px 14px; font-size:0.85rem;">📥 CSV 엑셀 다운로드</button>
@@ -43,14 +45,31 @@
               <th>구분</th>
               <th>신청자</th>
               <th>연락처</th>
-              <th>결과 유형</th>
+              <th>진단 결과</th>
               <th>고민 내용</th>
               <th>신청일시</th>
-              <th>상태 관리</th>
+              <th>맞춤 풀이서</th>
+              <th>상태</th>
             </tr>
           </thead>
           <tbody id="applicant-tbody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 관리자용 심층 풀이서 팝업 모달 -->
+  <div class="modal-overlay" id="report-modal">
+    <div class="modal-card" style="max-width: 540px;">
+      <h3 id="modal-client-title">심층 풀이서</h3>
+      <p style="color:var(--primary-purple); font-weight:700;" id="modal-client-type"></p>
+      
+      <div style="background:#faf6ff; border:1px solid #d1b8eb; border-radius:12px; padding:16px; margin-bottom:16px; max-height:280px; overflow-y:auto; text-align:left; font-size:0.9rem; line-height:1.7; white-space:pre-line;" id="modal-report-body">
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button class="btn-primary" onclick="copyReportText()">📋 풀이서 내용 복사</button>
+        <button onclick="closeReportModal()" style="background:#eee; border:none; border-radius:12px; padding:0 20px; font-weight:700; cursor:pointer;">닫기</button>
       </div>
     </div>
   </div>
@@ -84,15 +103,18 @@
     function renderAdminTable() {
       const tbody = document.getElementById('applicant-tbody');
       tbody.innerHTML = '';
-      applicantList.forEach(item => {
+      applicantList.forEach((item, idx) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><strong>${item.type}</strong></td>
           <td>${item.name}</td>
           <td>${item.phone}</td>
-          <td><small>${item.resultTitle}</small></td>
+          <td><small style="font-weight:700; color:#5c2692;">${item.resultTitle}</small></td>
           <td><small>${item.story}</small></td>
           <td><small>${item.createdAt}</small></td>
+          <td>
+            <button class="btn-view-report" onclick="openAdminReport(${idx})">풀이서 열람</button>
+          </td>
           <td>
             <select onchange="updateStatus(${item.id}, this.value)" style="padding:4px; border-radius:6px; border:1px solid #ccc; font-size:0.8rem;">
               <option value="신청접수" ${item.status === '신청접수' ? 'selected' : ''}>신청접수</option>
@@ -101,6 +123,44 @@
           </td>
         `;
         tbody.appendChild(tr);
+      });
+    }
+
+    // 맞춤 풀이서 매칭
+    function openAdminReport(index) {
+      const item = applicantList[index];
+      let reportText = "";
+
+      // 타로 CAT 매칭
+      const matchedCat = TAROT_CATS.find(c => c.code === item.resultCode);
+      if (matchedCat) {
+        reportText = matchedCat.fullReport;
+      } else {
+        // 사주 ELEM 매칭
+        const elemKey = Object.keys(SAJU_CATS).find(k => SAJU_CATS[k].code === item.resultCode);
+        if (elemKey) {
+          reportText = SAJU_CATS[elemKey].fullReport;
+        } else {
+          reportText = "맞춤 풀이 데이터가 기본 생성 중입니다. 관리자 풀이서를 확인하세요.";
+        }
+      }
+
+      const fullMessage = `안녕하세요, ${item.name}님! 소냥이 포춘살롱입니다 💜\n신청해주신 [${item.resultTitle}]의 맞춤 심층 풀이 리포트를 보내드립니다.\n\n${reportText}\n\n고민하셨던 부분(${item.story})에 작은 위로와 든든한 방향이 되길 바랍니다 ✨`;
+
+      document.getElementById('modal-client-title').innerText = `${item.name}님의 맞춤 리포트`;
+      document.getElementById('modal-client-type').innerText = item.resultTitle;
+      document.getElementById('modal-report-body').innerText = fullMessage;
+      document.getElementById('report-modal').style.display = 'flex';
+    }
+
+    function closeReportModal() {
+      document.getElementById('report-modal').style.display = 'none';
+    }
+
+    function copyReportText() {
+      const text = document.getElementById('modal-report-body').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("📋 고객 전송용 심층 풀이서가 클립보드에 복사되었습니다!\n카카오톡이나 문자로 바로 붙여넣기 하실 수 있습니다.");
       });
     }
 
