@@ -17,10 +17,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 신청 접수 API
+// 신청 접수 API (유형별 점수 scores 추가 저장)
 app.post('/api/apply', (req, res) => {
   try {
-    const { type, name, phone, email, story, resultTitle, resultCode } = req.body;
+    const { type, name, phone, email, story, resultTitle, resultCode, scores } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ success: false, message: '이름과 연락처를 입력해주세요.' });
     }
@@ -35,6 +35,7 @@ app.post('/api/apply', (req, res) => {
       story: story || '없음',
       resultCode: resultCode || '',
       resultTitle: resultTitle || '미지정',
+      scores: scores || null, // 9가지 유형별 점수 { "반듯냥": 42, "다정냥": 28, ... }
       createdAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
       status: '신청접수'
     };
