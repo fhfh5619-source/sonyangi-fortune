@@ -129,6 +129,7 @@
     let scores = new Array(9).fill(0);
     let myResultCode = "";
     let myResultTitle = "";
+    let myDetailedScores = {}; // 유형별 상세 점수 객체
 
     function renderQuestion() {
       if (curQ >= flatQ.length) {
@@ -148,7 +149,10 @@
 
     function showResult() {
       let best = 0, max = -1;
+      myDetailedScores = {};
+
       scores.forEach((s, idx) => {
+        myDetailedScores[TAROT_CATS[idx].name] = s; // 유형별 점수 기록
         if (s > max) { max = s; best = idx; }
       });
 
@@ -185,7 +189,8 @@
             type: "타로 심리 테스트",
             name, phone, email, story,
             resultCode: myResultCode,
-            resultTitle: myResultTitle
+            resultTitle: myResultTitle,
+            scores: myDetailedScores // 9개 유형별 점수 전송
           })
         });
         const data = await res.json();
