@@ -14,36 +14,13 @@
       background: #7942a6; color: #fff; border: none; padding: 6px 12px;
       border-radius: 8px; font-weight: 700; font-size: 0.8rem; cursor: pointer;
     }
-    .btn-view-report:hover { background: #5c2692; }
-
-    /* 유형별 점수 바 그래프 스타일 */
-    .score-chart-box {
-      background: #fdfbff;
-      border: 1.5px solid #e2d1f7;
-      border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 16px;
-    }
-    .score-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-      font-size: 0.85rem;
-    }
+    .badge-unapplied { background: #f3f3f3; color: #888; padding: 3px 6px; border-radius: 6px; font-size: 0.75rem; }
+    .badge-applied { background: #e8d7fd; color: #5c2692; padding: 3px 6px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; }
+    .score-chart-box { background: #fdfbff; border: 1.5px solid #e2d1f7; border-radius: 14px; padding: 14px; margin-bottom: 16px; }
+    .score-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem; }
     .score-name { width: 65px; font-weight: 700; color: var(--deep-purple); }
-    .score-bar-bg {
-      flex: 1;
-      height: 12px;
-      background: #eee3fb;
-      border-radius: 6px;
-      overflow: hidden;
-    }
-    .score-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #b885f0, #7942a6);
-      border-radius: 6px;
-    }
+    .score-bar-bg { flex: 1; height: 12px; background: #eee3fb; border-radius: 6px; overflow: hidden; }
+    .score-bar-fill { height: 100%; background: linear-gradient(90deg, #b885f0, #7942a6); border-radius: 6px; }
     .score-val { width: 45px; text-align: right; font-weight: 800; color: #7942a6; }
   </style>
 </head>
@@ -51,21 +28,21 @@
 
   <div class="app-container wide">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <h2 style="font-size:1.4rem; color:var(--deep-purple);">🔮 신청자 관리 및 심층 풀이서 발송</h2>
+      <h2 style="font-size:1.4rem; color:var(--deep-purple);">🔮 신청자 및 이탈자 실시간 통합 관리</h2>
       <a href="index.html" style="font-size:0.85rem; color:var(--primary-purple); text-decoration:none;">홈으로</a>
     </div>
 
-    <!-- 1. 로그인 창 -->
+    <!-- 로그인 -->
     <div id="login-box" style="text-align:center; padding:30px 10px;">
       <p style="margin-bottom:12px; color:#6e5c7e;">관리자 비밀번호를 입력해주세요.</p>
       <input type="password" id="admin-pw" class="form-control" style="max-width:240px; margin:0 auto 12px; display:block;" placeholder="기본: sonyangi777">
       <button class="btn-primary" style="max-width:240px;" onclick="fetchAdminData()">인증 후 조회</button>
     </div>
 
-    <!-- 2. 대시보드 -->
+    <!-- 대시보드 -->
     <div id="admin-dashboard" style="display:none;">
       <div style="display:flex; gap:10px; margin-bottom:12px; justify-content:flex-end;">
-        <button onclick="downloadCSV()" class="btn-primary" style="width:auto; padding:8px 14px; font-size:0.85rem;">📥 CSV 엑셀 다운로드 (점수 포함)</button>
+        <button onclick="downloadCSV()" class="btn-primary" style="width:auto; padding:8px 14px; font-size:0.85rem;">📥 CSV 엑셀 다운로드 (동의여부/점수 포함)</button>
       </div>
 
       <div class="table-wrap">
@@ -73,13 +50,14 @@
           <thead>
             <tr>
               <th>구분</th>
+              <th>상태</th>
               <th>신청자</th>
               <th>연락처</th>
+              <th>개인정보동의</th>
               <th>진단 결과</th>
-              <th>고민 내용</th>
-              <th>신청일시</th>
+              <th>고민 사연</th>
+              <th>일시</th>
               <th>점수 & 풀이서</th>
-              <th>상태</th>
             </tr>
           </thead>
           <tbody id="applicant-tbody"></tbody>
@@ -88,15 +66,14 @@
     </div>
   </div>
 
-  <!-- 심층 풀이서 & 유형별 점수 모달 -->
+  <!-- 풀이서 모달 -->
   <div class="modal-overlay" id="report-modal">
     <div class="modal-card" style="max-width: 580px;">
       <h3 id="modal-client-title">심층 풀이서 & 유형별 점수</h3>
       <p style="color:var(--primary-purple); font-weight:700; margin-bottom:10px;" id="modal-client-type"></p>
 
-      <!-- 9개 유형별 점수 그래프 영역 (타로 검사일 경우만 노출) -->
       <div id="modal-scores-section" style="display:none;">
-        <h4 style="font-size:0.9rem; color:var(--deep-purple); margin-bottom:8px;">📊 9가지 소냥이 유형별 점수 (총점 45점 만점)</h4>
+        <h4 style="font-size:0.9rem; color:var(--deep-purple); margin-bottom:8px;">📊 9가지 소냥이 유형별 점수 (45점 만점)</h4>
         <div class="score-chart-box" id="modal-score-bars"></div>
       </div>
       
@@ -111,87 +88,6 @@
   </div>
 
   <script>
-    const REPORT_DB = {
-      "CAT1": `[반듯냥 심층 솔루션]
-• 핵심 심리: 완벽하지 않으면 비난받을 것이라는 무의식적 불안이 있습니다.
-• 반복되는 고민: "왜 다들 나만큼 책임감이 없을까?" 속으로 분노를 삭이다 냉소적으로 변하기 쉽습니다.
-• 연애/관계: 정직하고 헌신적이나, 상대방에게 내 기준을 엄격히 강요해 피로감을 줍니다.
-• 솔루션: '완벽함'보다 '충분히 좋음'을 받아들이고 스스로에게 따뜻한 칭찬을 건네보세요.`,
-
-      "CAT2": `[다정냥 심층 솔루션]
-• 핵심 심리: 남에게 필요한 존재가 되지 못하면 사랑받지 못할 것이라는 불안이 있습니다.
-• 반복되는 고민: "내가 이만큼 챙겨줬는데 왜 상대는 몰라줄까?" 서운함이 쌓여 번아웃이 옵니다.
-• 연애/관계: 모든 걸 맞춰주다 상대에게 과의존하거나 감정적으로 통제하려 듭니다.
-• 솔루션: 남을 돕기 전에 "지금 내가 진짜 원하는 것은 무엇인가?"를 먼저 물어보세요.`,
-
-      "CAT3": `[반짝냥 심층 솔루션]
-• 핵심 심리: 인정받지 못하면 무가치하다는 내면의 성취 강박이 있습니다.
-• 반복되는 고민: "뒤처지면 어쩌지?" 감정을 억누르고 일에만 몰두하다 공허감이 찾아옵니다.
-• 연애/관계: 유능해 보이지만, 약점이나 솔직한 아픔을 털어놓지 못해 진솔한 교감이 어렵습니다.
-• 솔루션: 아무것도 성취하지 않은 '나 자신'도 온전히 사랑받을 자격이 있음을 기억하세요.`,
-
-      "CAT4": `[몽상냥 심층 솔루션]
-• 핵심 심리: 나를 온전히 이해해주는 사람이 없다는 결핍감과 고유성에 대한 집착이 있습니다.
-• 반복되는 고민: 감정의 기복으로 인해 일상의 리듬이 쉽게 깨지고 혼자만의 우울에 빠집니다.
-• 연애/관계: 드라마틱한 교감을 원하지만, 사소한 현실 마찰에 깊이 상처받고 문을 닫습니다.
-• 솔루션: 감정의 소용돌이에서 벗어나 현실적인 루틴(산책, 작은 과업 완료)을 몸으로 실천하세요.`,
-
-      "CAT5": `[탐구냥 심층 솔루션]
-• 핵심 심리: 준비되지 않은 채 세상에 나서면 압도당할 것이라는 두려움 때문에 지식 속으로 숨습니다.
-• 반복되는 고민: 사람들과 어울리면 에너지가 고갈되어 고립을 자초하기 쉽습니다.
-• 연애/관계: 지나치게 이성적이고 차분하여 상대방에게 '벽이 느껴진다'는 말을 듣습니다.
-• 솔루션: 머리로만 분석하지 말고, 몸으로 직접 경험하고 느끼는 안전한 관계를 넓혀가세요.`,
-
-      "CAT6": `[살핌냥 심층 솔루션]
-• 핵심 심리: 위험에 철저히 대비하지 않으면 무너질 수 있다는 불안이 깊습니다.
-• 반복되는 고민: 최악의 시나리오를 미리 그리느라 사소한 결정도 계속 미루게 됩니다.
-• 연애/관계: 믿음이 서기 전까진 상대를 끊임없이 시험하지만, 신뢰하면 끝까지 헌신합니다.
-• 솔루션: 세상은 생각보다 안전하며, 내면에도 문제를 해결할 힘이 있음을 신뢰하세요.`,
-
-      "CAT7": `[두근냥 심층 솔루션]
-• 핵심 심리: 지루함과 고통을 회피하고 언제나 새롭고 신나는 자극만을 쫓으려 합니다.
-• 반복되는 고민: 시작은 즐거우나 끝까지 마무리가 안 되어 산만함과 자책으로 이어집니다.
-• 연애/관계: 유쾌한 분위기 메이커이지만, 진지하고 무거운 갈등 상황을 회피하려 합니다.
-• 솔루션: 현재 마주한 작은 지루함을 견디고, 하나를 끝까지 마무리하는 충만감을 느껴보세요.`,
-
-      "CAT8": `[대장냥 심층 솔루션]
-• 핵심 심리: 약해지면 남들에게 조종당할 것이라는 두려움 때문에 강한 척 갑옷을 두릅니다.
-• 반복되는 고민: 직설적이고 통제하려는 태도로 인해 소중한 사람들과 갈등을 빚습니다.
-• 연애/관계: 내 사람이라 생각하면 헌신하지만, 주도권을 쥐려 해 상대방이 위축됩니다.
-• 솔루션: 나의 부드러운 속마음과 연약함을 솔직히 보여주는 것이 진짜 강함입니다.`,
-
-      "CAT9": `[포근냥 심층 솔루션]
-• 핵심 심리: 갈등이 일어나면 평온이 파괴될 것이라는 두려움 때문에 침묵을 선택합니다.
-• 반복되는 고민: 좋은 게 좋은 거지 하다가 뒤늦게 후회하거나 수동적으로 고집을 부립니다.
-• 연애/관계: 상대에게 모든 걸 맞춰주지만, 진짜 속마음을 말하지 않아 답답함을 줍니다.
-• 솔루션: 내 솔직한 의견을 표현해도 관계는 깨지지 않습니다. 당당히 의사를 표현하세요.`,
-
-      "ELEM_WOOD": `[쑥쑥냥 (목 기운) 심층 풀이]
-• 본원 특성: 생명력, 기획력, 끊임없는 호기심과 성장을 상징합니다.
-• 운의 흐름: 새로운 시작은 뛰어나나, 흙(土)의 정착력이 부족하면 중도에 지칠 수 있습니다.
-• 개운법: 푸른색 의상, 식물 가꾸기, 일의 마무리 체크리스트 작성을 실천하면 대운이 트입니다.`,
-
-      "ELEM_FIRE": `[활활냥 (화 기운) 심층 풀이]
-• 본원 특성: 솔직함, 정열, 화려함을 주관하며 어두운 곳을 밝히는 태양입니다.
-• 운의 흐름: 행동력과 인기는 최고이나, 감정 조절이 서투르면 쉽게 방전될 수 있습니다.
-• 개운법: 차분한 네이비/블랙 계열 소품을 활용하고, 호흡 명상으로 열기를 식혀주세요.`,
-
-      "ELEM_EARTH": `[든든냥 (토 기운) 심층 풀이]
-• 본원 특성: 신용, 포용력, 꾸준함을 상징하며 사람들을 이어주는 징검다리입니다.
-• 운의 흐름: 묵직하게 자산을 모으지만, 지나치게 보수적이라 기회를 놓치기 쉽습니다.
-• 개운법: 부드러운 산책과 함께 속마음을 일기에 솔직하게 털어놓는 훈련이 길합니다.`,
-
-      "ELEM_METAL": `[반짝금냥 (금 기운) 심층 풀이]
-• 본원 특성: 의리, 결단력, 완결성을 주관하는 단단한 원칙주의자입니다.
-• 운의 흐름: 마무리가 뛰어나지만, 융통성이 부족하면 대인관계 마찰이 잦을 수 있습니다.
-• 개운법: 따뜻한 우드 인테리어를 가까이하고, 상대방의 실수를 너그럽게 넘어가 보세요.`,
-
-      "ELEM_WATER": `[찰랑냥 (수 기운) 심층 풀이]
-• 본원 특성: 지혜, 통찰력, 영민함을 주관하며 상황에 맞춰 흐르는 물입니다.
-• 운의 흐름: 위기 극복 능력이 탁월하나, 잡생각이 많아 우울감에 빠지기 쉽습니다.
-• 개운법: 밝은 조명 켜기, 햇볕 쬐기, 생각을 즉시 행동으로 옮기는 습관이 운을 높입니다.`
-    };
-
     let applicantList = [];
 
     async function fetchAdminData() {
@@ -221,21 +117,18 @@
       tbody.innerHTML = '';
       applicantList.forEach((item, idx) => {
         const tr = document.createElement('tr');
+        const isApplied = item.status === '신청접수' || item.status === '상담완료';
         tr.innerHTML = `
           <td><strong>${item.type}</strong></td>
+          <td><span class="${isApplied ? 'badge-applied' : 'badge-unapplied'}">${item.status}</span></td>
           <td>${item.name}</td>
           <td>${item.phone}</td>
+          <td><small style="color:${item.privacyAgree === '동의완료' ? '#2e7d32' : '#888'}; font-weight:700;">${item.privacyAgree || '미동의'}</small></td>
           <td><small style="font-weight:700; color:#5c2692;">${item.resultTitle}</small></td>
           <td><small>${item.story}</small></td>
           <td><small>${item.createdAt}</small></td>
           <td>
             <button class="btn-view-report" onclick="openAdminReport(${idx})">점수 & 풀이서</button>
-          </td>
-          <td>
-            <select onchange="updateStatus(${item.id}, this.value)" style="padding:4px; border-radius:6px; border:1px solid #ccc; font-size:0.8rem;">
-              <option value="신청접수" ${item.status === '신청접수' ? 'selected' : ''}>신청접수</option>
-              <option value="상담완료" ${item.status === '상담완료' ? 'selected' : ''}>상담완료</option>
-            </select>
           </td>
         `;
         tbody.appendChild(tr);
@@ -244,28 +137,20 @@
 
     function openAdminReport(index) {
       const item = applicantList[index];
-      const reportText = REPORT_DB[item.resultCode] || "맞춤 풀이 리포트가 생성 대기 중입니다.";
-      const fullMessage = `안녕하세요, ${item.name}님! 소냥이 포춘살롱입니다 💜\n신청해주신 [${item.resultTitle}]의 맞춤 심층 풀이 리포트를 보내드립니다.\n\n${reportText}\n\n고민하셨던 부분(${item.story})에 작은 위로와 든든한 방향이 되길 바랍니다 ✨`;
-
       document.getElementById('modal-client-title').innerText = `${item.name}님의 진단 리포트`;
       document.getElementById('modal-client-type').innerText = item.resultTitle;
-      document.getElementById('modal-report-body').innerText = fullMessage;
+      document.getElementById('modal-report-body').innerText = item.fullMessage || "풀이서 내용이 없습니다.";
 
-      // 유형별 점수 시각화 렌더링
       const scoreSection = document.getElementById('modal-scores-section');
       const scoreBarsBox = document.getElementById('modal-score-bars');
 
       if (item.scores && Object.keys(item.scores).length > 0) {
         scoreSection.style.display = 'block';
         scoreBarsBox.innerHTML = '';
-
-        // 점수 높은 순으로 정렬
-        const sortedScores = Object.entries(item.scores).sort((a, b) => b[1] - a[1]);
-
-        sortedScores.forEach(([typeName, score], rank) => {
-          const pct = Math.min(100, Math.round((score / 45) * 100)); // 9문항 * 5점 = 45점 만점
+        const sorted = Object.entries(item.scores).sort((a, b) => b[1] - a[1]);
+        sorted.forEach(([typeName, score], rank) => {
+          const pct = Math.min(100, Math.round((score / 45) * 100));
           const isTop = rank === 0;
-
           const row = document.createElement('div');
           row.className = 'score-row';
           row.innerHTML = `
@@ -289,37 +174,25 @@
     function copyReportText() {
       const text = document.getElementById('modal-report-body').innerText;
       navigator.clipboard.writeText(text).then(() => {
-        alert("📋 고객 전송용 심층 풀이서가 복사되었습니다!\n카카오톡이나 문자로 바로 붙여넣기 하실 수 있습니다.");
+        alert("📋 고객 전송용 심층 풀이서가 복사되었습니다!");
       });
     }
 
-    async function updateStatus(id, newStatus) {
-      const pw = document.getElementById('admin-pw').value;
-      await fetch('/api/admin/update-status', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ password: pw, id, status: newStatus })
-      });
-      alert('상태가 업데이트되었습니다.');
-    }
-
-    // CSV 다운로드 시 9개 유형별 점수를 엑셀 컬럼에 추가
     function downloadCSV() {
       const types = ["반듯냥", "다정냥", "반짝냥", "몽상냥", "탐구냥", "살핌냥", "두근냥", "대장냥", "포근냥"];
-      let csvContent = "\uFEFF구분,이름,연락처,이메일,결과,고민,신청일시,상태," + types.map(t => `${t}점수`).join(",") + "\n";
+      let csvContent = "\uFEFF구분,상태,이름,연락처,개인정보동의,이메일,결과,고민,일시," + types.map(t => `${t}점수`).join(",") + "\n";
 
       applicantList.forEach(row => {
         const scoresObj = row.scores || {};
         const scoreCols = types.map(t => scoresObj[t] !== undefined ? scoresObj[t] : "-").join(",");
-
-        csvContent += `"${row.type}","${row.name}","${row.phone}","${row.email}","${row.resultTitle}","${row.story}","${row.createdAt}","${row.status}",${scoreCols}\n`;
+        csvContent += `"${row.type}","${row.status}","${row.name}","${row.phone}","${row.privacyAgree || '-'}","${row.email}","${row.resultTitle}","${row.story}","${row.createdAt}",${scoreCols}\n`;
       });
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `소냥이_신청내역_유형점수포함_${new Date().toISOString().slice(0,10)}.csv`);
+      link.setAttribute("download", `소냥이_전체조회_신청내역_${new Date().toISOString().slice(0,10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
