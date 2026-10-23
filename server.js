@@ -7,10 +7,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "sonyangi777";
 
-// ★ 발급받으신 구글 시트 웹 앱 URL을 여기에 따옴표 안에 붙여넣으세요!
-const GOOGLE_SHEET_URL = process.env.GOOGLE_SHEET_URL || "https://script.google.com/macros/s/AKfycbxRS-0UPlpbEh-0CREa4UfwaX0-9FjdsyWlx-0VfJ0GZRWg0-FcDzA1n1BTVFCPwzcGnQ/exec";
+// 구글 시트 웹 앱 URL을 따옴표 안에 넣어주세요
+const GOOGLE_SHEET_URL = process.env.GOOGLE_SHEET_URL || "https://script.google.com/macros/s/AKfycbwRe_NkUqUNpPIzpUZOXyps0vtGQplHfb5nzS_rcUnUrf69uYhK02UGdLvR6FnfgOnHbA/exec";
 
-// 관리자 풀이서 데이터베이스
 const REPORT_DB = {
   "CAT1": `[반듯냥 심층 솔루션]\n• 핵심 심리: 완벽하지 않으면 비난받을 것이라는 무의식적 불안이 있습니다.\n• 반복되는 고민: "왜 다들 나만큼 책임감이 없을까?" 속으로 분노를 삭이다 냉소적으로 변하기 쉽습니다.\n• 연애/관계: 정직하고 헌신적이나, 상대방에게 내 기준을 엄격히 강요해 피로감을 줍니다.\n• 솔루션: '완벽함'보다 '충분히 좋음'을 받아들이고 스스로에게 따뜻한 칭찬을 건네보세요.`,
   "CAT2": `[다정냥 심층 솔루션]\n• 핵심 심리: 남에게 필요한 존재가 되지 못하면 사랑받지 못할 것이라는 불안이 있습니다.\n• 반복되는 고민: "내가 이만큼 챙겨줬는데 왜 상대는 몰라줄까?" 서운함이 쌓여 번아웃이 옵니다.\n• 연애/관계: 모든 걸 맞춰주다 상대에게 과의존하거나 감정적으로 통제하려 듭니다.\n• 솔루션: 남을 돕기 전에 "지금 내가 진짜 원하는 것은 무엇인가?"를 먼저 물어보세요.`,
@@ -33,58 +32,122 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 신청 접수 API
-app.post('/api/apply', async (req, res) => {
+// 1. 결과 페이지 도달 시 자동 기록 API (신청 안 해도 기록됨)
+app.post('/api/auto-log', async (req, res) => {
   try {
-    const { type, name, phone, email, story, resultTitle, resultCode, scores } = req.body;
-    if (!name || !phone) {
-      return res.status(400).json({ success: false, message: '이름과 연락처를 입력해주세요.' });
-    }
-
-    // 1위 최고 점수 계산
+    const { type, resultTitle, resultCode, scores } = req.body;
     let topScore = 0;
     if (scores && typeof scores === 'object') {
-      const scoreArr = Object.values(scores);
-      if (scoreArr.length > 0) topScore = Math.max(...scoreArr);
+      const arr = Object.values(scores);
+      if (arr.length > 0) topScore = Math.max(...arr);
     }
 
-    // 고객 전송용 맞춤 풀이서 메시지 생성
-    const reportText = REPORT_DB[resultCode] || "맞춤 풀이서 생성 대기 중입니다.";
-    const fullMessage = `안녕하세요, ${name}님! 소냥이 포춘살롱입니다 💜\n신청해주신 [${resultTitle}]의 맞춤 심층 풀이 리포트를 보내드립니다.\n\n${reportText}\n\n고민하셨던 부분(${story || "내용 없음"})에 따뜻한 위로와 든든한 방향이 되길 바랍니다 ✨`;
+    const reportText = REPORT_DB[resultCode] || "맞춤 풀이서 준비 중";
+    const fullMessage = `[소냥이 포춘살롱 맞춤 리포트]\n진단 결과: ${resultTitle}\n\n${reportText}`;
 
-    const newEntry = {
+    const newLog = {
       id: Date.now(),
       type: type || '타로 심리 테스트',
-      name,
-      phone,
-      email: email || '-',
-      story: story || '없음',
+      name: '익명(미신청)',
+      phone: '-',
+      email: '-',
+      privacyAgree: '해당없음(단순조회)',
+      story: '결과 페이지만 확인 (미신청)',
       resultCode: resultCode || '',
       resultTitle: resultTitle || '미지정',
       topScore: topScore,
       scores: scores || null,
-      fullMessage: fullMessage, // 관리자 및 구글시트용 풀이서 전문
+      fullMessage: fullMessage,
       createdAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
-      status: '신청접수'
+      status: '결과조회(미신청)'
     };
 
-    // 1. 구글 시트로 모든 정보 실시간 전송
+    // 구글 시트 전송
     if (GOOGLE_SHEET_URL) {
       try {
         await fetch(GOOGLE_SHEET_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newEntry)
+          body: JSON.stringify(newLog)
         });
-      } catch (sheetErr) {
-        console.error("구글 시트 연동 에러:", sheetErr.message);
-      }
+      } catch (err) {}
     }
 
-    // 2. 관리자 웹페이지용 백업
+    // 서버 JSON 백업
     const currentData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-    currentData.unshift(newEntry);
+    currentData.unshift(newLog);
     fs.writeFileSync(DATA_FILE, JSON.stringify(currentData, null, 2));
+
+    return res.json({ success: true, id: newLog.id });
+  } catch (e) {
+    return res.status(500).json({ success: false });
+  }
+});
+
+// 2. 신청서 제출 API (개인정보 동의 포함)
+app.post('/api/apply', async (req, res) => {
+  try {
+    const { logId, type, name, phone, email, story, resultTitle, resultCode, scores, privacyAgree } = req.body;
+    if (!name || !phone) {
+      return res.status(400).json({ success: false, message: '이름과 연락처를 입력해주세요.' });
+    }
+    if (!privacyAgree) {
+      return res.status(400).json({ success: false, message: '개인정보 수집 및 이용에 동의해주세요.' });
+    }
+
+    let topScore = 0;
+    if (scores && typeof scores === 'object') {
+      const arr = Object.values(scores);
+      if (arr.length > 0) topScore = Math.max(...arr);
+    }
+
+    const reportText = REPORT_DB[resultCode] || "맞춤 풀이서 준비 중";
+    const fullMessage = `안녕하세요, ${name}님! 소냥이 포춘살롱입니다 💜\n신청해주신 [${resultTitle}]의 맞춤 심층 풀이 리포트입니다.\n\n${reportText}\n\n고민하셨던 부분(${story || "없음"})에 든든한 방향이 되길 바랍니다 ✨`;
+
+    const currentData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+    
+    // 기존 자동로그가 있으면 업데이트, 없으면 신규 생성
+    let target = currentData.find(item => item.id === Number(logId));
+    if (target) {
+      target.name = name;
+      target.phone = phone;
+      target.email = email || '-';
+      target.privacyAgree = '동의완료';
+      target.story = story || '없음';
+      target.fullMessage = fullMessage;
+      target.status = '신청접수';
+    } else {
+      target = {
+        id: Date.now(),
+        type: type || '타로 심리 테스트',
+        name,
+        phone,
+        email: email || '-',
+        privacyAgree: '동의완료',
+        story: story || '없음',
+        resultCode: resultCode || '',
+        resultTitle: resultTitle || '미지정',
+        topScore: topScore,
+        scores: scores || null,
+        fullMessage: fullMessage,
+        createdAt: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+        status: '신청접수'
+      };
+      currentData.unshift(target);
+    }
+
+    fs.writeFileSync(DATA_FILE, JSON.stringify(currentData, null, 2));
+
+    // 구글 시트 전송
+    if (GOOGLE_SHEET_URL) {
+      try {
+        await fetch(GOOGLE_SHEET_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target)
+        });
+      } catch (err) {}
+    }
 
     return res.json({ success: true, message: '신청이 정상적으로 완료되었습니다.' });
   } catch (error) {
@@ -92,7 +155,7 @@ app.post('/api/apply', async (req, res) => {
   }
 });
 
-// 관리자 목록 조회
+// 관리자 목록
 app.post('/api/admin/list', (req, res) => {
   const { password } = req.body;
   if (password !== ADMIN_PASSWORD) {
